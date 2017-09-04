@@ -17,26 +17,49 @@ class DingProxy {
   }
 }
 
+
 module.exports = function (injected) {
   const utils = injected.utils
   const { debug } = injected.logger("ding")
+  console.log(debug)
   debug("create ding processors")
+  const dingEx = {
+
+    async screenshot() {
+      console.log("screen shot")
+      let hasCmd = await utils.hasCmd("import")
+      hasCmd = hasCmd && await utils.hasCmd("xclip")
+      if (!hasCmd) {
+        throw new Error("import,xclip are required")
+      }
+
+      await utils.exec("import", ["/tmp/tmp.png"])
+      await utils.exec("xclip", [
+        "-selection",
+        "clipboard",
+        "-t",
+        "image/png",
+        "/tmp/tmp.png"
+      ])
+    }
+  }
   return utils.decorate({
     declare() {
       return {
-        services: ["srpc"],
+        services: ["twoWayCall"],
         params: {
-          srpc: {
+          twoWayCall: {
             type: "eolwebsocket",
-            timeout: 3 * 1000
+            timeout: 3 * 1000,
+            provider: dingEx
           }
         }
       }
     },
     init({ services }) {
-      let { srpc } = services
-      this.srpc = srpc
-      this.ding = new DingProxy(srpc)
+      let { twoWayCall } = services
+      this.twoWayCall = twoWayCall
+      this.ding = new DingProxy(twoWayCall)
     },
 
     hello() {
@@ -115,7 +138,7 @@ module.exports = function (injected) {
     }
   }, (self, processor) =>
       async (op, list) => {
-        if (self.srpc.ready()) {
+        if (self.twoWayCall.ready()) {
           return processor.call(self, op, list)
         } else {
           return [{
